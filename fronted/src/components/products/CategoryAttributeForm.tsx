@@ -5,11 +5,13 @@ import {
   type ProductCategoryAttribute,
 } from "../../Services/api/categories";
 
-type FormValue = string | number | boolean | null;
+export type FormValue = string | number | boolean | null;
 
 const normalizeDataType = (value: string): string => value.trim().toLowerCase();
 
-const getAttributeKind = (attribute: ProductCategoryAttribute): "number" | "boolean" | "select" | "text" => {
+export const getAttributeKind = (
+  attribute: ProductCategoryAttribute,
+): "number" | "boolean" | "select" | "text" => {
   const dataType = normalizeDataType(attribute.dataType);
 
   if (
@@ -73,23 +75,81 @@ const validateAttributeValue = (
   return null;
 };
 
-export function CategoryAttributeForm() {
-  const [categories, setCategories] = useState<ProductCategory[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+export const buildCategoryAttributePayload = (
+  category: ProductCategory,
+  values: Record<number, FormValue>,
+): Record<string, FormValue> =>
+  category.attributes.reduce<Record<string, FormValue>>((result, attribute) => {
+    const entry = values[attribute.id];
+    const normalizedValue = entry === "" || entry === null || entry === undefined ? null : entry;
+    result[attribute.name] = normalizedValue;
+    return result;
+  }, {});
+
+export interface CategoryAttributeFormProps {
+  categories?: ProductCategory[];
+  initialCategoryId?: number | null;
+  title?: string;
+  submitLabel?: string;
+  submitMessageText?: string;
+  showCategorySelector?: boolean;
+  loading?: boolean;
+  error?: string | null;
+  onSubmit?: (payload: Record<string, FormValue>, category: ProductCategory) => void;
+  onCategoryChange?: (category: ProductCategory) => void;
+}
+
+export function CategoryAttributeForm({
+  categories: externalCategories,
+  initialCategoryId = null,
+  title = "Atributos de la categoría",
+  submitLabel = "Guardar formulario",
+  submitMessageText,
+  showCategorySelector = true,
+  loading: externalLoading,
+  error: externalError,
+  onSubmit,
+  onCategoryChange,
+}: CategoryAttributeFormProps) {
+  const [fallbackCategories, setFallbackCategories] = useState<ProductCategory[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(initialCategoryId);
   const [values, setValues] = useState<Record<number, FormValue>>({});
   const [errors, setErrors] = useState<Record<number, string>>({});
-  const [submitMessage, setSubmitMessage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [submitMessage, setSubmitMessage] = useState<string | null>(submitMessageText ?? null);
+  const [loading, setLoading] = useState(externalLoading ?? true);
+  const [error, setError] = useState<string | null>(externalError ?? null);
+
+  const categories = externalCategories ?? fallbackCategories;
 
   useEffect(() => {
+    if (externalCategories) {
+      setLoading(Boolean(externalLoading));
+      setError(externalError ?? null);
+      if (externalCategories.length > 0) {
+        setSelectedCategoryId((currentId) => {
+          if (currentId != null && externalCategories.some((category) => category.id === currentId)) {
+            return currentId;
+          }
+
+          return initialCategoryId ?? externalCategories[0].id;
+        });
+      }
+      return;
+    }
+
     let isMounted = true;
 
     getProductCategories()
       .then((result) => {
         if (!isMounted) return;
-        setCategories(result);
-        setSelectedCategoryId(result[0]?.id ?? null);
+        setFallbackCategories(result);
+        setSelectedCategoryId((currentId) => {
+          if (currentId != null && result.some((category) => category.id === currentId)) {
+            return currentId;
+          }
+
+          return initialCategoryId ?? result[0]?.id ?? null;
+        });
       })
       .catch((caughtError: unknown) => {
         if (!isMounted) return;
@@ -103,12 +163,18 @@ export function CategoryAttributeForm() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [externalCategories, externalError, externalLoading, initialCategoryId]);
 
   const selectedCategory = useMemo(
     () => categories.find((category) => category.id === selectedCategoryId) ?? null,
     [categories, selectedCategoryId],
   );
+
+  useEffect(() => {
+    if (selectedCategory) {
+      onCategoryChange?.(selectedCategory);
+    }
+  }, [selectedCategory, onCategoryChange]);
 
   useEffect(() => {
     if (!selectedCategory) return;
@@ -173,20 +239,14 @@ export function CategoryAttributeForm() {
     if (!selectedCategory) return;
 
     const nextErrors: Record<number, string> = {};
-    const payload = selectedCategory.attributes.reduce<Record<string, FormValue>>((result, attribute) => {
-      const entry = values[attribute.id];
-      const validationError = validateAttributeValue(attribute, entry ?? null);
+    const payload = buildCategoryAttributePayload(selectedCategory, values);
 
+    for (const attribute of selectedCategory.attributes) {
+      const validationError = validateAttributeValue(attribute, values[attribute.id] ?? null);
       if (validationError) {
         nextErrors[attribute.id] = validationError;
       }
-
-      const normalizedValue =
-        entry === "" || entry === null || entry === undefined ? null : entry;
-
-      result[attribute.name] = normalizedValue;
-      return result;
-    }, {});
+    }
 
     setErrors(nextErrors);
 
@@ -195,8 +255,8 @@ export function CategoryAttributeForm() {
       return;
     }
 
-    setSubmitMessage(`Formulario válido para ${selectedCategory.name}.`);
-    console.info("Category form payload", payload);
+    setSubmitMessage(submitMessageText ?? `Formulario válido para ${selectedCategory.name}.`);
+    onSubmit?.(payload, selectedCategory);
   };
 
   if (loading) {
@@ -220,21 +280,28 @@ export function CategoryAttributeForm() {
       <div className="border-b border-white/10 bg-gradient-to-r from-slate-900/90 to-slate-900/60 px-5 py-4">
         <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-prime">Formulario dinámico</p>
         <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-xl font-bold text-white">Atributos de la categoría</h2>
-          <label className="flex items-center gap-2 text-sm text-slate-300">
-            <span>Categoría</span>
-            <select
-              value={selectedCategory.id}
-              onChange={(event) => setSelectedCategoryId(Number(event.target.value))}
-              className="rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white outline-none ring-0 transition focus:border-prime"
-            >
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <h2 className="text-xl font-bold text-white">{title}</h2>
+          {showCategorySelector && (
+            <label className="flex items-center gap-2 text-sm text-slate-300">
+              <span>Categoría</span>
+              <select
+                value={selectedCategory.id}
+                onChange={(event) => {
+                  const nextCategoryId = Number(event.target.value);
+                  setSelectedCategoryId(nextCategoryId);
+                  const nextCategory = categories.find((category) => category.id === nextCategoryId);
+                  if (nextCategory) onCategoryChange?.(nextCategory);
+                }}
+                className="rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white outline-none ring-0 transition focus:border-prime"
+              >
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
       </div>
 
@@ -350,10 +417,12 @@ export function CategoryAttributeForm() {
             type="submit"
             className="rounded-lg bg-prime px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
           >
-            Guardar formulario
+            {submitLabel}
           </button>
         </div>
       </form>
     </section>
   );
 }
+
+export const CategoryAttributeEditor = CategoryAttributeForm;
