@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Page, Product } from "../../types";
 import { getProducts } from "../../services/api/api";
 import { Breadcrumb } from "../../components/common/ui";
+import { CategoryAttributeForm } from "../../components/products/CategoryAttributeForm";
 
 interface Props {
   navigate: (page: Page) => void;
@@ -377,6 +378,8 @@ export default function ProductCategoriesPage({ navigate }: Props) {
           })}
         </div>
       )}
+
+      {!loading && !error && totalProducts > 0 && <CategoryAttributeForm />}
     </div>
   );
 }
