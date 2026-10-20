@@ -45,10 +45,40 @@ const getFallbackSelectOptions = (attribute: ProductCategoryAttribute) => {
   return ["Opción 1", "Opción 2", "Opción 3"];
 };
 
+const validateAttributeValue = (
+  attribute: ProductCategoryAttribute,
+  value: FormValue,
+): string | null => {
+  const kind = getAttributeKind(attribute);
+
+  if (value === null || value === "") {
+    return attribute.required ? "Este campo es obligatorio." : null;
+  }
+
+  if (kind === "number") {
+    const asNumber = Number(value);
+    if (!Number.isFinite(asNumber)) {
+      return "Debe ingresar un número válido.";
+    }
+  }
+
+  if (kind === "boolean" && typeof value !== "boolean") {
+    return "Debe seleccionar una opción válida.";
+  }
+
+  if (kind === "text" && typeof value === "string" && value.trim().length === 0) {
+    return attribute.required ? "Este campo es obligatorio." : null;
+  }
+
+  return null;
+};
+
 export function CategoryAttributeForm() {
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [values, setValues] = useState<Record<number, FormValue>>({});
+  const [errors, setErrors] = useState<Record<number, string>>({});
+  const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -105,22 +135,36 @@ export function CategoryAttributeForm() {
 
   const handleValueChange = (attribute: ProductCategoryAttribute, rawValue: string) => {
     const kind = getAttributeKind(attribute);
-
-    setValues((currentValues) => {
-      const nextValue: FormValue =
-        kind === "number"
+    const nextValue: FormValue =
+      kind === "number"
+        ? rawValue === ""
+          ? null
+          : Number(rawValue)
+        : kind === "boolean"
           ? rawValue === ""
             ? null
-            : Number(rawValue)
-          : kind === "boolean"
-            ? rawValue === "true"
-            : rawValue;
+            : rawValue === "true"
+          : rawValue;
 
-      return {
-        ...currentValues,
-        [attribute.id]: nextValue,
-      };
+    setValues((currentValues) => ({
+      ...currentValues,
+      [attribute.id]: nextValue,
+    }));
+
+    setErrors((currentErrors) => {
+      const nextErrors = { ...currentErrors };
+      const validationError = validateAttributeValue(attribute, nextValue);
+
+      if (validationError) {
+        nextErrors[attribute.id] = validationError;
+      } else {
+        delete nextErrors[attribute.id];
+      }
+
+      return nextErrors;
     });
+
+    setSubmitMessage(null);
   };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -128,8 +172,15 @@ export function CategoryAttributeForm() {
 
     if (!selectedCategory) return;
 
+    const nextErrors: Record<number, string> = {};
     const payload = selectedCategory.attributes.reduce<Record<string, FormValue>>((result, attribute) => {
       const entry = values[attribute.id];
+      const validationError = validateAttributeValue(attribute, entry ?? null);
+
+      if (validationError) {
+        nextErrors[attribute.id] = validationError;
+      }
+
       const normalizedValue =
         entry === "" || entry === null || entry === undefined ? null : entry;
 
@@ -137,6 +188,14 @@ export function CategoryAttributeForm() {
       return result;
     }, {});
 
+    setErrors(nextErrors);
+
+    if (Object.keys(nextErrors).length > 0) {
+      setSubmitMessage("Corrige los campos obligatorios antes de guardar.");
+      return;
+    }
+
+    setSubmitMessage(`Formulario válido para ${selectedCategory.name}.`);
     console.info("Category form payload", payload);
   };
 
@@ -180,6 +239,18 @@ export function CategoryAttributeForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5 p-5 sm:p-6">
+        {submitMessage && (
+          <div
+            className={`rounded-xl border px-3 py-2 text-sm ${
+              submitMessage.includes("Corrige")
+                ? "border-amber-400/30 bg-amber-500/10 text-amber-100"
+                : "border-emerald-400/30 bg-emerald-500/10 text-emerald-100"
+            }`}
+          >
+            {submitMessage}
+          </div>
+        )}
+
         <div className="space-y-4">
           {selectedCategory.attributes
             .slice()
@@ -189,6 +260,10 @@ export function CategoryAttributeForm() {
               const rawValue = values[attribute.id] ?? (attribute.required ? "" : "");
               const isBoolean = attributeKind === "boolean";
               const hasUnit = attribute.unit && attribute.unit.trim().length > 0;
+              const fieldError = errors[attribute.id];
+              const inputClassName = `w-full rounded-lg border bg-slate-950 px-3 py-2.5 text-sm text-white outline-none transition focus:border-prime ${
+                fieldError ? "border-rose-400/60" : "border-white/10"
+              }`;
 
               return (
                 <label
@@ -208,7 +283,7 @@ export function CategoryAttributeForm() {
                     <select
                       value={String(rawValue === null ? "" : rawValue)}
                       onChange={(event) => handleValueChange(attribute, event.target.value)}
-                      className="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none transition focus:border-prime"
+                      className={inputClassName}
                     >
                       <option value="">Seleccionar</option>
                       <option value="true">Sí</option>
@@ -218,7 +293,7 @@ export function CategoryAttributeForm() {
                     <select
                       value={String(rawValue === null ? "" : rawValue)}
                       onChange={(event) => handleValueChange(attribute, event.target.value)}
-                      className="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none transition focus:border-prime"
+                      className={inputClassName}
                     >
                       <option value="">Seleccionar</option>
                       {getFallbackSelectOptions(attribute).map((option) => (
@@ -234,7 +309,7 @@ export function CategoryAttributeForm() {
                         step="any"
                         value={rawValue === null || rawValue === "" ? "" : String(rawValue)}
                         onChange={(event) => handleValueChange(attribute, event.target.value)}
-                        className="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2.5 pr-12 text-sm text-white outline-none transition focus:border-prime"
+                        className={`${inputClassName} pr-12`}
                         placeholder={hasUnit ? `Valor en ${attribute.unit}` : "Ingrese un valor"}
                       />
                       {hasUnit && (
@@ -248,9 +323,13 @@ export function CategoryAttributeForm() {
                       type="text"
                       value={rawValue === null ? "" : String(rawValue)}
                       onChange={(event) => handleValueChange(attribute, event.target.value)}
-                      className="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none transition focus:border-prime"
+                      className={inputClassName}
                       placeholder={isBoolean ? "Ingrese un valor" : "Ingrese texto"}
                     />
+                  )}
+
+                  {fieldError && (
+                    <span className="mt-2 block text-xs text-rose-200">{fieldError}</span>
                   )}
 
                   {attribute.comparable && (
