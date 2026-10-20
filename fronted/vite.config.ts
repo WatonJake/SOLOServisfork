@@ -35,6 +35,7 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       proxy: {
         "/products": "http://localhost:8081",
+        "/categories": "http://localhost:8081",
         "/stores": "http://localhost:8082",
         "/services": "http://localhost:8083",
         "/users": "http://localhost:8084",

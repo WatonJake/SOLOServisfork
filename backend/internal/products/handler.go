@@ -112,6 +112,19 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *Handler) ListCategories(w http.ResponseWriter, r *http.Request) {
+	categories, err := h.repository.ListCategories(r.Context())
+	if err != nil {
+		http.Error(w, "failed to list product categories", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(categories); err != nil {
+		return
+	}
+}
+
 func (h *Handler) GetByPublicID(w http.ResponseWriter, r *http.Request) {
 	publicID := chi.URLParam(r, "publicID")
 

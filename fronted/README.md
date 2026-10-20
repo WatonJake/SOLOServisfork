@@ -8,8 +8,8 @@ cuando se deja vacía, se usa el mismo origen. Si no está definida, el cliente 
 las URL locales individuales como fallback. En desarrollo, Vite reenvía las rutas
 del mismo origen a los puertos locales definidos en `vite.config.ts`. Para usar
 ese proxy local, copia `.env.example` a `.env`. El gateway de nginx de Kubernetes
-actualmente publica `/products` y `/stores`; las demás APIs requieren sus servicios
-y rutas de gateway antes de estar disponibles allí.
+publica `/products` y `/categories` hacia product-api, y `/stores` hacia store-api;
+las demás APIs requieren sus servicios y rutas de gateway antes de estar disponibles allí.
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

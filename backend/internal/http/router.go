@@ -51,6 +51,7 @@ func NewProductRouter(db *pgxpool.Pool, frontendURL string) *chi.Mux {
 
 	r.Get("/products", productHandler.List)
 	r.Get("/products/{publicID}", productHandler.GetByPublicID)
+	r.Get("/categories", productHandler.ListCategories)
 	r.Post("/products", productHandler.Create)
 	r.Put("/products/{publicID}", productHandler.Update)
 	r.Delete("/products/{publicID}", productHandler.Deactivate)
@@ -148,6 +149,7 @@ func NewRouter(db *pgxpool.Pool, frontendURL string) *chi.Mux {
 
 	r.Get("/products", productHandler.List)
 	r.Get("/products/{publicID}", productHandler.GetByPublicID)
+	r.Get("/categories", productHandler.ListCategories)
 	r.Post("/products", productHandler.Create)
 	r.Put("/products/{publicID}", productHandler.Update)
 	r.Delete("/products/{publicID}", productHandler.Deactivate)

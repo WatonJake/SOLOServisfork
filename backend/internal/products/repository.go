@@ -73,6 +73,103 @@ func (r *Repository) List(ctx context.Context) ([]generated.ListProductsRow, err
 	return r.queries.ListProducts(ctx)
 }
 
+func (r *Repository) ListCategories(ctx context.Context) ([]dto.ProductCategory, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			category.id,
+			category.parent_category_id,
+			category.name,
+			COALESCE(category.description, ''),
+			specification.id,
+			specification.name,
+			specification.data_type,
+			specification.unit,
+			specification.required,
+			specification.comparable,
+			specification.display_order
+		FROM product_category category
+		LEFT JOIN product_category_specification specification
+			ON specification.category_id = category.id
+		WHERE category.active
+		ORDER BY category.parent_category_id NULLS FIRST, category.name,
+			specification.display_order, specification.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	categories := make([]dto.ProductCategory, 0)
+	categoryIndexes := make(map[int32]int)
+
+	for rows.Next() {
+		var categoryID int32
+		var parentCategoryID pgtype.Int4
+		var categoryName, description string
+		var attributeID pgtype.Int4
+		var attributeName, dataType, unit pgtype.Text
+		var required, comparable pgtype.Bool
+		var displayOrder pgtype.Int4
+
+		if err := rows.Scan(
+			&categoryID,
+			&parentCategoryID,
+			&categoryName,
+			&description,
+			&attributeID,
+			&attributeName,
+			&dataType,
+			&unit,
+			&required,
+			&comparable,
+			&displayOrder,
+		); err != nil {
+			return nil, err
+		}
+
+		index, exists := categoryIndexes[categoryID]
+		if !exists {
+			category := dto.ProductCategory{
+				ID:          categoryID,
+				Name:        categoryName,
+				Description: description,
+				Attributes:  make([]dto.ProductCategoryAttribute, 0),
+			}
+			if parentCategoryID.Valid {
+				parentID := parentCategoryID.Int32
+				category.ParentCategoryID = &parentID
+			}
+
+			categories = append(categories, category)
+			index = len(categories) - 1
+			categoryIndexes[categoryID] = index
+		}
+
+		if !attributeID.Valid {
+			continue
+		}
+
+		attribute := dto.ProductCategoryAttribute{
+			ID:           attributeID.Int32,
+			Name:         attributeName.String,
+			DataType:     dataType.String,
+			Required:     required.Bool,
+			Comparable:   comparable.Bool,
+			DisplayOrder: displayOrder.Int32,
+		}
+		if unit.Valid {
+			value := unit.String
+			attribute.Unit = &value
+		}
+		categories[index].Attributes = append(categories[index].Attributes, attribute)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return categories, nil
+}
+
 func (r *Repository) GetByPublicID(ctx context.Context, publicID pgtype.UUID) (generated.Product, error) {
 	return r.queries.GetProductByPublicID(ctx, publicID)
 }

@@ -827,8 +827,9 @@ Actualmente:
 VITE_API_URL=http://localhost:8080
 ```
 
-Este servidor integrado publica actualmente las rutas `/products`, `/services` y
-`/stores`; no funciona como gateway de las APIs de autenticacion, carrito,
+Este servidor integrado publica actualmente las rutas `/products`, `/categories`,
+`/services` y `/stores`; `/categories` entrega la jerarquía de categorías de producto
+y sus atributos configurables. No funciona como gateway de las APIs de autenticacion, carrito,
 favoritos, busqueda o comparacion. Como `VITE_API_URL` aplica a todas las
 solicitudes del frontend, usa una URL de gateway que enrute todas las rutas
 necesarias o deja la variable vacia para usar el proxy de Vite durante el

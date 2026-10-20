@@ -1,8 +1,8 @@
 # SOLOServis en Kubernetes (MVP)
 
 ```
-Browser -> Ingress (/) -> frontend (nginx :8080) -> /products -> product-api (:8081)
-                                                 -> /stores   -> store-api   (:8082)
+Browser -> Ingress (/) -> frontend (nginx :8080) -> /products, /categories -> product-api (:8081)
+                                                 -> /stores                 -> store-api   (:8082)
 product-api, store-api -> postgres:5432 (StatefulSet + PVC)
 ```
 
@@ -12,7 +12,8 @@ por path lo hace el nginx del frontend (`docker/frontend/nginx.conf`) hacia los
 Services internos. El navegador solo usa el host público (mismo origen, sin CORS)
 y el frontend se compila con `VITE_API_URL=""`. El cliente API común usa esa base
 para enviar las solicitudes al gateway nginx del frontend, que actualmente publica
-las rutas `/products` y `/stores`. Las demás APIs siguen fuera del MVP de Kubernetes.
+las rutas `/products`, `/categories` y `/stores`. Las demás APIs siguen fuera del
+MVP de Kubernetes.
 
 ## Estructura
 
