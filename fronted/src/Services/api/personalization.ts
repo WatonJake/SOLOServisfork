@@ -1,5 +1,6 @@
 import type { AnyCartItem, Product, Service } from "../../types";
 import { getProductById, getServiceById } from "../../services/api/api";
+import { ApiError, apiRequest } from "../../apiClient";
 
 const FAVORITES_API_URL = import.meta.env.VITE_FAVORITES_API_URL ?? "http://localhost:8089";
 const CART_API_URL = import.meta.env.VITE_CART_API_URL ?? "http://localhost:8090";
@@ -28,15 +29,6 @@ export interface SearchHistoryEntry {
   query: string;
   type: string;
   createdAt: string;
-}
-
-class ApiError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message);
-  }
 }
 
 interface ApiCartItem {
@@ -71,50 +63,52 @@ async function request<T>(
   retryWithRefresh = true,
 ): Promise<T> {
   const session = getStoredAuthSession();
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...init,
-    headers: {
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...(session ? { Authorization: `Bearer ${session.accessToken}` } : {}),
-      ...init?.headers,
-    },
-  });
 
-  if (response.status === 401 && retryWithRefresh && baseUrl !== AUTH_API_URL && session) {
-    const refreshResponse = await fetch(`${AUTH_API_URL}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken: session.refreshToken }),
-    });
-    if (refreshResponse.ok) {
-      const tokens = (await refreshResponse.json()) as TokenResponse;
-      if (tokens.accessToken && tokens.refreshToken) {
-        storeAuthSession({
-          ...session,
-          accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
-          accessTokenExpiresAt: Date.now() + tokens.expiresIn * 1000,
-        });
-        return request<T>(baseUrl, path, init, false);
-      }
-    } else if (refreshResponse.status === 401) {
-      localStorage.removeItem(AUTH_SESSION_KEY);
+  try {
+    return await apiRequest<T>(baseUrl, path, init, { accessToken: session?.accessToken });
+  } catch (error) {
+    if (
+      !(error instanceof ApiError) ||
+      error.status !== 401 ||
+      !retryWithRefresh ||
+      baseUrl === AUTH_API_URL ||
+      !session
+    ) {
+      throw error;
     }
-  }
 
-  if (!response.ok) {
-    let message = `Error ${response.status} al consultar ${path}`;
+    let tokens: TokenResponse;
     try {
-      const body = (await response.json()) as { error?: string; message?: string };
-      message = body.error ?? body.message ?? message;
-    } catch {
-      // Keep the HTTP status message when an endpoint does not return JSON.
+      tokens = await apiRequest<TokenResponse>(
+        AUTH_API_URL,
+        "/auth/refresh",
+        {
+          method: "POST",
+          body: JSON.stringify({ refreshToken: session.refreshToken }),
+        },
+        { accessToken: session.accessToken },
+      );
+    } catch (refreshError) {
+      if (refreshError instanceof ApiError && refreshError.status === 401) {
+        localStorage.removeItem(AUTH_SESSION_KEY);
+      }
+      const detail = refreshError instanceof Error ? refreshError.message : String(refreshError);
+      throw new Error(`No se pudo renovar la sesion: ${detail}`, { cause: refreshError });
     }
-    throw new ApiError(message, response.status);
-  }
+    if (!tokens.accessToken || !tokens.refreshToken) {
+      throw new Error("La API de autenticacion devolvio tokens de renovacion invalidos.", {
+        cause: error,
+      });
+    }
+    storeAuthSession({
+      ...session,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      accessTokenExpiresAt: Date.now() + tokens.expiresIn * 1000,
+    });
 
-  if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
+    return request<T>(baseUrl, path, init, false);
+  }
 }
 
 interface TokenResponse {

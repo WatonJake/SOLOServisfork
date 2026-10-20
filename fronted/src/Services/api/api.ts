@@ -7,6 +7,7 @@ import type {
   StoreProduct,
 } from "../../types";
 import { parseAmount, toProduct, type ApiProduct } from "./products";
+import { ApiError, apiRequest } from "../../apiClient";
 
 const PRODUCT_API_URL = import.meta.env.VITE_PRODUCT_API_URL ?? "http://localhost:8081";
 const SERVICE_API_URL = import.meta.env.VITE_SERVICE_API_URL ?? "http://localhost:8083";
@@ -65,18 +66,8 @@ interface ApiListEnvelope<T> {
   Count: number;
 }
 
-async function fetchJson<T>(baseUrl: string, path: string): Promise<T> {
-  const response = await fetch(`${baseUrl}${path}`);
-
-  if (!response.ok) {
-    throw new Error(`Error ${response.status} al consultar ${path}`);
-  }
-
-  return response.json() as Promise<T>;
-}
-
 async function fetchList<T>(baseUrl: string, path: string): Promise<T[]> {
-  const response = await fetchJson<T[] | ApiListEnvelope<T>>(baseUrl, path);
+  const response = await apiRequest<T[] | ApiListEnvelope<T>>(baseUrl, path);
   return Array.isArray(response) ? response : response.value;
 }
 
@@ -137,17 +128,14 @@ export async function getProducts(): Promise<Product[]> {
 }
 
 export async function getProductById(id: string): Promise<Product | null> {
-  const response = await fetch(`${PRODUCT_API_URL}/products/${id}`);
-
-  if (response.status === 404) {
-    return null;
+  try {
+    return toProduct(
+      await apiRequest<ApiProduct>(PRODUCT_API_URL, `/products/${encodeURIComponent(id)}`),
+    );
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
   }
-
-  if (!response.ok) {
-    throw new Error(`Error ${response.status} al obtener el producto`);
-  }
-
-  return toProduct((await response.json()) as ApiProduct);
 }
 
 export async function getServices(params?: { category?: string }): Promise<Service[]> {
@@ -159,17 +147,12 @@ export async function getServices(params?: { category?: string }): Promise<Servi
 }
 
 export async function getServiceById(id: string): Promise<Service | null> {
-  const response = await fetch(`${SERVICE_API_URL}/services/${id}`);
-
-  if (response.status === 404) {
-    return null;
+  try {
+    return await apiRequest<Service>(SERVICE_API_URL, `/services/${encodeURIComponent(id)}`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
   }
-
-  if (!response.ok) {
-    throw new Error(`Error ${response.status} al obtener el servicio`);
-  }
-
-  return response.json() as Promise<Service>;
 }
 
 export async function getStores(): Promise<Store[]> {
@@ -178,15 +161,12 @@ export async function getStores(): Promise<Store[]> {
 }
 
 export async function getStoreById(id: string): Promise<StoreDetail | null> {
-  const response = await fetch(`${STORE_API_URL}/stores/${id}`);
-
-  if (response.status === 404) {
-    return null;
+  try {
+    return toStoreDetail(
+      await apiRequest<ApiStoreDetail>(STORE_API_URL, `/stores/${encodeURIComponent(id)}`),
+    );
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
   }
-
-  if (!response.ok) {
-    throw new Error(`Error ${response.status} al obtener la tienda`);
-  }
-
-  return toStoreDetail((await response.json()) as ApiStoreDetail);
 }

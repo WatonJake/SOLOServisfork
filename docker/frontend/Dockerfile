@@ -13,25 +13,10 @@ RUN pnpm install --frozen-lockfile
 
 COPY fronted/ ./
 
-# URLs base que el NAVEGADOR usa para llegar a las APIs.
-# Vacío = mismo origen: nginx del frontend reenvía /products y /stores a cada API.
-# Nunca usar DNS interno de Kubernetes ni localhost aquí.
-ARG VITE_PRODUCT_API_URL=""
-ARG VITE_STORE_API_URL=""
-ARG VITE_SERVICE_API_URL=""
-ARG VITE_FAVORITES_API_URL=""
-ARG VITE_CART_API_URL=""
-ARG VITE_COMPARISON_API_URL=""
-ARG VITE_AUTH_API_URL=""
-ARG VITE_SEARCH_API_URL=""
-ENV VITE_PRODUCT_API_URL=$VITE_PRODUCT_API_URL \
-    VITE_STORE_API_URL=$VITE_STORE_API_URL \
-    VITE_SERVICE_API_URL=$VITE_SERVICE_API_URL \
-    VITE_FAVORITES_API_URL=$VITE_FAVORITES_API_URL \
-    VITE_CART_API_URL=$VITE_CART_API_URL \
-    VITE_COMPARISON_API_URL=$VITE_COMPARISON_API_URL \
-    VITE_AUTH_API_URL=$VITE_AUTH_API_URL \
-    VITE_SEARCH_API_URL=$VITE_SEARCH_API_URL
+# Empty uses the frontend nginx as a same-origin API gateway.
+# Never use Kubernetes-internal DNS or localhost here.
+ARG VITE_API_URL=""
+ENV VITE_API_URL=$VITE_API_URL
 
 RUN pnpm build
 

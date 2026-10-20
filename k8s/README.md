@@ -10,7 +10,9 @@ La plataforma UCT solo admite el path `/` por hostname en un Ingress
 (ValidatingAdmissionPolicy `rke2-edu-ingress-hostname`). Por eso el enrutamiento
 por path lo hace el nginx del frontend (`docker/frontend/nginx.conf`) hacia los
 Services internos. El navegador solo usa el host público (mismo origen, sin CORS)
-y el frontend se compila con `VITE_*_API_URL=""`.
+y el frontend se compila con `VITE_API_URL=""`. El cliente API común usa esa base
+para enviar las solicitudes al gateway nginx del frontend, que actualmente publica
+las rutas `/products` y `/stores`. Las demás APIs siguen fuera del MVP de Kubernetes.
 
 ## Estructura
 

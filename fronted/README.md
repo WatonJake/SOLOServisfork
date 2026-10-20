@@ -1,5 +1,16 @@
 # React + TypeScript + Vite
 
+## API
+
+Las solicitudes HTTP del frontend usan el cliente común en `src/apiClient.ts`.
+Configura `VITE_API_URL` con la URL base del gateway;
+cuando se deja vacía, se usa el mismo origen. Si no está definida, el cliente usa
+las URL locales individuales como fallback. En desarrollo, Vite reenvía las rutas
+del mismo origen a los puertos locales definidos en `vite.config.ts`. Para usar
+ese proxy local, copia `.env.example` a `.env`. El gateway de nginx de Kubernetes
+actualmente publica `/products` y `/stores`; las demás APIs requieren sus servicios
+y rutas de gateway antes de estar disponibles allí.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
